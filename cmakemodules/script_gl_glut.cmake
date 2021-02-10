@@ -19,37 +19,33 @@ unset(MRPT_OPENGL_LIBS)
 
 
 # Read: https://cmake.org/cmake/help/latest/module/FindOpenGL.html
-set(OpenGL_GL_PREFERENCE "LEGACY")
 find_package(OpenGL)
 
-if(UNIX)
-	find_package(GLUT)
-endif()
 
 if(OpenGL_FOUND)
-	add_library(imp_opengl INTERFACE IMPORTED)
-	set_target_properties(imp_opengl
-		PROPERTIES
-		INTERFACE_INCLUDE_DIRECTORIES "${OPENGL_INCLUDE_DIR}"
-		INTERFACE_LINK_LIBRARIES "${OPENGL_gl_LIBRARY}"
-		)
-	list(APPEND MRPT_OPENGL_LIBS imp_opengl)
+	list(APPEND MRPT_OPENGL_LIBS OpenGL::GL)
+
+	if(UNIX)
+		find_package(GLUT)
+		find_package(GLEW)
+	endif()
 endif()
 
-if(UNIX AND GLUT_FOUND AND OPENGL_gl_LIBRARY AND OPENGL_glu_LIBRARY AND GLUT_glut_LIBRARY)
+if(UNIX AND GLUT_FOUND AND OpenGL_FOUND)
 	set(CMAKE_MRPT_HAS_OPENGL_GLUT 1)
 	set(CMAKE_MRPT_HAS_OPENGL_GLUT_SYSTEM 1)
 
-	add_library(imp_glut INTERFACE IMPORTED)
-	set_target_properties(imp_glut
-		PROPERTIES
-		INTERFACE_INCLUDE_DIRECTORIES "${GLUT_INCLUDE_DIR}"
-		INTERFACE_LINK_LIBRARIES "${OPENGL_glu_LIBRARY};${GLUT_glut_LIBRARY}"
-		)
-	list(APPEND MRPT_OPENGL_LIBS imp_glut)
+	list(APPEND MRPT_OPENGL_LIBS GLUT::GLUT)
 
 	set(CMAKE_MRPT_HAS_GLUT 1)
 	set(CMAKE_MRPT_HAS_GLUT_SYSTEM 1)
+endif()
+
+if(OpenGL_FOUND)
+	set(CMAKE_MRPT_HAS_OPENGL_GLEW 1)
+	set(CMAKE_MRPT_HAS_OPENGL_GLEW_SYSTEM 1)
+
+	list(APPEND MRPT_OPENGL_LIBS GLEW::GLEW)
 endif()
 
 # GLUT: Windows or Linux w/o system OpenGL packages: embedded source version.
