@@ -19,6 +19,7 @@
 /// MRPT includes
 #include <mrpt/io/CFileGZInputStream.h>
 #include <mrpt/obs/CObservation.h>
+#include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationImage.h>
 #include <mrpt/obs/CObservationStereoImages.h>
 #include <mrpt/obs/CRawlog.h>
@@ -953,20 +954,6 @@ void MainWindow::makeVisionOptionsVisible(bool flag)
  ************************************************************************************************/
 void MainWindow::readRawlogFiles(string rawlog)
 {
-	/// APPROACH 1: not required
-	/*mrpt::io::CFileGZInputStream rawlog_stream_;// = new CFileGZInputStream
-	rawlog_stream_.open(rawlog);
-	CSensoryFrame frames;
-	CActionCollection actions;
-	//CObservation ooobs;
-	mrpt::obs::CActionCollection::Ptr action ;
-	CSensoryFrame::Ptr    observations;
-	CObservation::Ptr      obs;
-	size_t entry1_ = 0;
-	rawlog_stream_.close();
-	*/
-
-	/// APPROACH 2 this is what we need
 	CRawlog dataset;
 	dataset.loadFromRawLogFile(rawlog);
 
@@ -1007,6 +994,7 @@ void MainWindow::readRawlogFiles(string rawlog)
 				case CRawlog::etObservation:
 				{
 					CObservation::Ptr o = dataset.getAsObservation(i);
+					o->load();
 
 					if (IS_CLASS(*o, CObservationStereoImages))
 					{
@@ -1014,36 +1002,56 @@ void MainWindow::readRawlogFiles(string rawlog)
 							std::dynamic_pointer_cast<CObservationStereoImages>(
 								o);
 
-						stringstream str;
-						str << getImageDir(rawlog) << "/Images";
-						mrpt::img::CImage::setImagesPathBase(str.str());
-						file_path1 = str.str();
+						const auto imgDir =
+							CRawlog::detectImagesDirectory(rawlog);
+
+						file_path1 = imgDir;
 						flag_path2++;
-						inputFilePath->setText(
-							QString::fromStdString(str.str()));
+						inputFilePath->setText(QString::fromStdString(imgDir));
 
 						rawlog_type = 1;
 
-						CImage image_c = obsSt->imageLeft;
-						// JLBC?
-						// Mat cvImg1 =
-						// cv::cvarrToMat(image_c.getAs<IplImage>());
+						const auto& image_c = obsSt->imageLeft;
+						cvImg1 = image_c.asCvMatRef();
 					}
 					else if (IS_CLASS(*o, CObservationImage))
 					{
 						CObservationImage::Ptr obsIm =
 							std::dynamic_pointer_cast<CObservationImage>(o);
 
-						stringstream str;
-						str << getImageDir(rawlog) << "/Images";
-						mrpt::img::CImage::setImagesPathBase(str.str());
-						file_path1 = str.str();
+						const auto imgDir =
+							CRawlog::detectImagesDirectory(rawlog);
+
+						mrpt::img::CImage::setImagesPathBase(imgDir);
+						file_path1 = imgDir;
 						flag_path++;
 
-						inputFilePath->setText(
-							QString::fromStdString(str.str()));
+						inputFilePath->setText(QString::fromStdString(imgDir));
 						rawlog_type = 0;
+
+						const auto& image_c = obsIm->image;
+						cvImg1 = image_c.asCvMatRef();
 					}
+					else if (IS_CLASS(*o, CObservation3DRangeScan))
+					{
+						auto obs =
+							std::dynamic_pointer_cast<CObservation3DRangeScan>(
+								o);
+
+						const auto imgDir =
+							CRawlog::detectImagesDirectory(rawlog);
+
+						mrpt::img::CImage::setImagesPathBase(imgDir);
+						file_path1 = imgDir;
+						flag_path++;
+
+						inputFilePath->setText(QString::fromStdString(imgDir));
+						rawlog_type = 0;
+
+						const auto& image_c = obs->intensityImage;
+						cvImg1 = image_c.asCvMatRef();
+					}
+					o->unload();
 				}  // end of etObservation case
 				break;
 				case CRawlog::etActionCollection:
@@ -1053,6 +1061,7 @@ void MainWindow::readRawlogFiles(string rawlog)
 
 				default:;  // nothing goes here;
 			}  // end of switch case block
+
 			/// this breaks out of the for loop as only the path of the folder
 			/// storing the images is required.
 			/// for loop iterates over the observations till it finds an image
@@ -1967,7 +1976,9 @@ void MainWindow::readFilesFromFolder(int next_prev)
 		currentInputIndex ==
 			2)	// meaning stereo dataset or single image dataset
 	{
+		ASSERT_DIRECTORY_EXISTS_(file_path1);
 		dir = opendir(file_path1.c_str());
+		ASSERT_(dir);
 		while ((pdir = readdir(dir)))
 			files.emplace_back(pdir->d_name);
 		for (unsigned int i = 0, j = 0; i < files.size(); i++)
